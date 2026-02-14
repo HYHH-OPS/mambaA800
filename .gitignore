@@ -1,41 +1,11 @@
-# Python cache
-__pycache__/
+﻿__pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Virtual env
 .venv/
 .venv_wsl/
-venv/
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Training artifacts and logs
 outputs/
 mamba-res/
-*.log
-*.tmp
-
-# Large/local model assets
 models/
-*.safetensors
-*.bin
 *.pt
 *.pth
-
-# Local datasets (do not upload private/huge data to GitHub)
-nnunet_raw/
-nnunet_preprocessed/
-nnunet_results/
-nnunet_data/
-data_local/
-
-# Keep empty directories if needed
-!.gitkeep
+*.safetensors
+*.bin
