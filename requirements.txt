@@ -1,0 +1,26 @@
+# 医学 VLM：nnU-Net + Vim Bridge + Mamba-2
+torch>=2.0
+numpy>=1.20
+
+# 配置
+PyYAML>=6.0
+
+# 数据：NIfTI
+nibabel>=3.0
+SimpleITK>=2.0
+pandas>=1.3
+
+# 论文图
+matplotlib>=3.5
+
+# LLM：Mamba-2.8B（HuggingFace）
+transformers>=4.39
+accelerate>=0.20
+
+# 可选：Mamba SSM 加速（需 CUDA 与 causal-conv1d）
+# mamba-ssm
+# causal-conv1d
+
+# 可选：nnU-Net 编码器权重加载（若用完整 nnUNet 结构）
+# nnunet
+# dynamic-network-architectures

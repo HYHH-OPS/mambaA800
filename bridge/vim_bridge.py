@@ -1,0 +1,100 @@
+"""
+Vim (Vision Mamba) Bridge: 2D 特征图 → 1D 序列 → Mamba 建模 → 视觉 token 序列。
+
+与 ARCHITECTURE.md 一致：将 nnU-Net 编码器输出的 [B, C, H, W] 展平为 [B, L, C]，
+经线性投影到 d_model 后通过 Vision Mamba Block（双向或单向），输出 [B, L, D] 供 LLM 融合。
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+import torch
+import torch.nn as nn
+
+# 可选：使用 mamba_ssm 的 Mamba 层
+try:
+    from mamba_ssm.modules.mamba_simple import Mamba
+    _HAS_MAMBA_SSM = True
+except ImportError:
+    _HAS_MAMBA_SSM = False
+    Mamba = None
+
+
+class VimBlock(nn.Module):
+    """
+    单向前向 Mamba 块；若 mamba_ssm 不可用则退化为 Linear + LayerNorm。
+    """
+
+    def __init__(
+        self,
+        d_model: int,
+        d_state: int = 16,
+        d_conv: int = 4,
+        expand: int = 2,
+    ):
+        super().__init__()
+        self.d_model = d_model
+        if _HAS_MAMBA_SSM and Mamba is not None:
+            self.mamba = Mamba(d_model=d_model, d_state=d_state, d_conv=d_conv, expand=expand)
+        else:
+            self.mamba = nn.Sequential(
+                nn.Linear(d_model, d_model * 2),
+                nn.GELU(),
+                nn.Linear(d_model * 2, d_model),
+            )
+        self.norm = nn.LayerNorm(d_model)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: [B, L, D]
+        return self.norm(x + self.mamba(x))
+
+
+class VimBridge(nn.Module):
+    """
+    Vision Mamba 桥接器：2D feature map → 展平 → 投影 → 双向 Vim → 视觉 token 序列。
+
+    输入: [B, C, H, W]（如 C=512, H=W=28）
+    输出: [B, L, d_model]，L = H*W（如 28*28=784）
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        d_model: int,
+        bidirectional: bool = True,
+        d_state: int = 16,
+        d_conv: int = 4,
+        expand: int = 2,
+    ):
+        super().__init__()
+        self.proj = nn.Linear(in_channels, d_model)
+        self.d_model = d_model
+        self.bidirectional = bidirectional
+        self.norm = nn.LayerNorm(d_model)
+        self.vim_fwd = VimBlock(d_model=d_model, d_state=d_state, d_conv=d_conv, expand=expand)
+        if bidirectional:
+            self.vim_bwd = VimBlock(d_model=d_model, d_state=d_state, d_conv=d_conv, expand=expand)
+            self.out_proj = nn.Linear(d_model * 2, d_model)
+        else:
+            self.vim_bwd = None
+            self.out_proj = nn.Identity()
+
+    def forward(self, feat_2d: torch.Tensor) -> torch.Tensor:
+        """
+        feat_2d: [B, C, H, W]
+        return: [B, H*W, d_model]
+        """
+        B, C, H, W = feat_2d.shape
+        # 按行展平为 1D 序列（Vim 做法）
+        x = feat_2d.flatten(2).permute(0, 2, 1)  # [B, L, C]
+        x = self.norm(self.proj(x))  # [B, L, d_model]
+
+        if self.bidirectional:
+            x_fwd = self.vim_fwd(x)
+            x_bwd = self.vim_bwd(torch.flip(x, dims=[1]))
+            x_bwd = torch.flip(x_bwd, dims=[1])
+            x = self.out_proj(torch.cat([x_fwd, x_bwd], dim=-1))
+        else:
+            x = self.vim_fwd(x)
+        return x

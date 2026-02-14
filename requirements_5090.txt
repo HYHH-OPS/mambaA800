@@ -1,0 +1,20 @@
+# 医学 VLM (nnU-Net + Vim + Mamba) — RTX 5090
+# 用法：先安装 PyTorch nightly cu128（见 setup_mamba_5090.ps1），再 pip install -r requirements_5090.txt
+# RTX 5090 为 Blackwell (sm_120)，需 CUDA 12.8
+
+numpy>=1.20
+PyYAML>=6.0
+nibabel>=3.0
+SimpleITK>=2.0
+pandas>=1.3
+matplotlib>=3.5
+tqdm>=4.60
+
+# LLM：Mamba-2 (HuggingFace)
+transformers>=4.39
+accelerate>=0.20
+sentencepiece
+tokenizers
+
+# 可选：Mamba SSM 加速（需 CUDA，推荐 5090 上安装）
+# pip install mamba-ssm causal-conv1d
